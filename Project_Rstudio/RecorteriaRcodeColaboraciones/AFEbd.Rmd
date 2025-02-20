@@ -1,0 +1,240 @@
+---
+title: "AFE"
+author: "Nelson"
+date: "2024-02-27"
+output:
+  word_document: default
+  html_document: default
+  pdf_document: default
+---
+
+```{r}
+# Cargar las librerías necesarias
+library(readxl)
+library(psych)
+library(GGally)
+#install.packages("polycor")
+library(polycor)
+library(ggcorrplot)
+library(dplyr)
+library(foreign) 
+library(lavaan)
+
+# Leer los datos desde el archivo Excel
+datos <- read_excel("C:/Users/nelson/Documents/completa5F.xlsx", sheet = "Hoja2")
+#View(datos)
+length(datos)
+
+PS <- datos[1]
+
+HDL <- datos[2]
+HDL_N <- (-1 * HDL)
+#View(HDL_N)
+
+GLU <- datos[3]
+
+TRIG <- datos
+lnTRIG <- log(TRIG)[4]
+#View(lnTRIG)
+
+IMC <- datos[5]
+
+CC <- datos[6]
+```
+
+
+```{r}
+row(datos)
+names(datos)
+q <- seq(1:337)
+
+SM_PS <- as.numeric(PS >= 130)
+SM_HDL <- as.numeric(PS >= 40)
+SM_GLU <- as.numeric(PS >= 100)
+SM_TRIG <- as.numeric(PS >= 150)
+SM_CC <- as.numeric(PS >= 102)
+SM_IMC <-as.numeric(PS >= 30)
+
+SM <- data.frame(SM_PS,SM_HDL,SM_GLU,SM_TRIG,SM_CC)
+#View(SM)
+
+# Suma de todas las filas
+suma_total <- rowSums(SM)
+#View(suma_total)
+
+suma_total
+
+SM2 <- data.frame(SM_PS,SM_HDL,SM_GLU,SM_TRIG,SM_CC,suma_total)
+#View(SM2)
+# Crear un nuevo DataFrame con la suma como una fila adicional
+df_con_suma <- rbind(SM, suma_total)
+View(df_con_suma)
+ 
+# Crear un ejemplo de DataFrame
+df <- data.frame(
+  A = c(1, 2, 3),
+  B = c(4, 5, 6),
+  C = c(7, 8, 9)
+)
+
+# Sumar las filas
+suma_filas <- rowSums(df)
+
+# Mostrar la suma de las filas
+print(suma_filas)
+
+
+
+
+
+
+#Crear una matriz de ejemplo
+matriz <- matrix(,1:5, nrow = 3)
+
+# Valor numérico con el que comparar
+valor <- 5
+
+# Comparar los elementos de la matriz con el valor numérico
+resultado <- matriz == valor
+
+# Imprimir el resultado
+print(resultado)
+ 
+
+modeloregresionlineal <- glm(SM)
+```
+
+```{r}
+# Crear un dataframe con las variables originales
+datos2 <- data.frame(PS = c(PS), HDL_N = c(-1 * HDL), lnTRIG = log(TRIG), IMC = c(IMC), GLU = c(GLU))
+
+# Estandarizar las variables
+datos_estandarizados <- scale(datos2)
+summary(datos_estandarizados)
+# Mostrar el dataframe estandarizado
+print(datos_estandarizados)
+
+```
+
+
+```{r}#
+# Estandarizar las variables
+datos_estandarizados <- datos2 %>%
+  mutate(across(everything(), scale))
+
+# Verificar las variables estandarizadas
+print(datos_estandarizados)
+#View(datos_estandarizados)
+```
+
+
+```{r}
+# Calcular la media de las variables estandarizadas
+media_estandarizada <- colMeans(datos_estandarizados)
+print(media_estandarizada)
+
+# Calcular la desviación estándar de las variables estandarizadas
+desviacion_estandar_estandarizada <- apply(datos_estandarizados, 2, sd)
+print(desviacion_estandar_estandarizada)
+```
+
+```{r}
+var(datos_estandarizados)
+mcor <- cor(datos_estandarizados) 
+mcor
+```
+
+```{r}
+cortest.bartlett(mcor)->p_esf
+p_esf$p
+```
+
+
+```{r}
+# Kaiser-Meyer-Olkin
+R <- hetcor(mcor)$correlations
+
+# Visualización de la matriz de correlación
+ggcorrplot(R, type = "lower", hc.order = TRUE)
+
+# Prueba de esfericidad de Bartlett
+print(cortest.bartlett(R))
+
+# Prueba de KMO
+KMO(R)
+# Imprimir las cargas factoriales
+#resultado_efa$loadings
+
+
+
+```
+
+```{r}
+### prueba de dos modelos con tres factores
+modelo1<-fa(mcor,
+           nfactors = 3,
+           rotate = "none",
+           fm="mle") # modelo máxima verosimilitud
+
+modelo2<-fa(mcor,
+           nfactors = 3,
+           rotate = "none",
+           fm="minres") # modelo minimo residuo
+######comparando las comunalidades
+sort(modelo1$communality,decreasing = T)->c1
+sort(modelo2$communality,decreasing = T)->c2
+head(cbind(c1,c2))
+
+####comparacion de las unicidades 
+sort(modelo1$uniquenesses,decreasing = T)->u1
+sort(modelo2$uniquenesses,decreasing = T)->u2
+head(cbind(u1,u2))
+```
+
+```{r}
+scree(mcor)
+fa.parallel(mcor,n.obs=337,fa="fa",fm="minres")
+```
+
+
+```{r}
+# Realizar el análisis factorial exploratorio
+resultado_efa <- fa(datos_estandarizados, nfactors = 5, rotate = "varimax", fm = "ml")
+summary(resultado_efa)
+```
+
+
+```{r}
+# Definir los métodos de rotación
+rot <- c("none", "varimax", "quartimax", "promax")
+
+# Función para generar el biplot para un método de rotación dado
+bi_mod <- function(tipo, datos) {
+  # Realizar AFE con el método de rotación dado
+  fa_result <- fa(datos, nfactors = 2, fm = "minres", rotate = tipo)
+  
+  # Graficar el biplot
+  biplot.psych(fa_result, main = paste("Biplot con rotación", tipo), col = c(2, 3, 4), pch = c(21, 18), group = datos$gender)
+}
+
+# Aplicar la función bi_mod a cada método de rotación y guardar los resultados
+biplot_list <- lapply(rot, bi_mod, datos = datos_estandarizados)
+
+# Mostrar los biplots generados
+biplot_list
+```
+
+
+```{r}
+modelo_varimax<-fa(mcor,nfactors = 5,rotate = "varimax",
+              fa="minres")
+fa.diagram(modelo_varimax)
+```
+
+
+
+
+
+
+
+
